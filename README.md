@@ -17,7 +17,7 @@ comunican por eventos Kafka y comparten una sola base PostgreSQL (`inventaya_db`
 |---|---|
 | Repositorio (único, monorepo) | https://github.com/David-ReyesPe/inventaya |
 | Versión entregada (etiqueta / release) | `v1.0.0-entrega-final` |
-| Commit de la versión entregada | `a37a985` |
+| Commit de la versión entregada | `53076a5` |
 | ZIP entregado | Generado desde ese mismo commit (`git archive`), ver `docs/manual-tecnico.md` |
 
 No existen otros repositorios: backend, frontend, contratos, documentación y Compose viven en este monorepo.
