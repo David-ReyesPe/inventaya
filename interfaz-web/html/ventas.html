@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ventas · InventaYa</title>
+    <link rel="stylesheet" href="assets/estilos.css">
+</head>
+<body>
+
+<header class="cabecera">
+    <div class="marca">Inventa<span>Ya</span></div>
+    <nav class="navegacion">
+        <a href="dashboard.html" data-pagina="dashboard">Dashboard</a>
+        <a href="ventas.html" data-pagina="ventas">Ventas</a>
+        <a href="inventario.html" data-pagina="inventario">Inventario</a>
+    </nav>
+    <div class="sesion">
+        <span class="sesion-estado" id="sesion-estado"></span>
+        <select id="selector-rol" style="width:auto">
+            <option value="ADMIN">ADMIN</option>
+            <option value="USER">USER</option>
+        </select>
+        <button id="boton-entrar" class="pequeno">Obtener token</button>
+        <button id="boton-salir" class="secundario pequeno">Salir</button>
+    </div>
+</header>
+
+<main>
+    <h1>Servicio de Ventas</h1>
+    <p class="subtitulo">
+        Punto de venta: arma la venta con uno o varios productos, registrala y consulta el historico.
+        Puerto 8081 · rutas <span class="mono">/api/ventas</span>
+    </p>
+
+    <div class="aviso error oculto" id="error-general"></div>
+
+    <section class="panel">
+        <h2>Nueva venta</h2>
+        <p class="ayuda">
+            Al registrar, Ventas valida el stock disponible, persiste la venta y publica el evento
+            <span class="mono">venta-realizada</span> en <span class="mono">ventas-topic</span>.
+            Si algun producto no tiene stock suficiente, la venta completa se rechaza con 409.
+        </p>
+
+        <div class="fila">
+            <div style="flex:2; min-width:260px">
+                <label for="producto">Producto</label>
+                <select id="producto"></select>
+            </div>
+            <div style="flex:0 0 120px">
+                <label for="cantidad">Cantidad</label>
+                <input id="cantidad" type="number" min="1" step="1" value="1">
+            </div>
+            <div style="flex:0 0 150px">
+                <label for="precio">Precio unitario</label>
+                <input id="precio" type="number" min="0" step="1">
+            </div>
+            <button id="boton-agregar" class="secundario">Agregar item</button>
+        </div>
+
+        <div class="tabla-envoltura" style="margin-top:18px">
+            <table>
+                <thead>
+                <tr>
+                    <th>Producto</th>
+                    <th class="numero">Cantidad</th>
+                    <th class="numero">Precio unitario</th>
+                    <th class="numero">Subtotal</th>
+                    <th></th>
+                </tr>
+                </thead>
+                <tbody id="cuerpo-carrito"></tbody>
+                <tfoot>
+                <tr>
+                    <th colspan="3" style="text-align:right">Total</th>
+                    <th class="numero" id="total-carrito" style="font-size:16px; color:var(--texto)">$0</th>
+                    <th></th>
+                </tr>
+                </tfoot>
+            </table>
+        </div>
+
+        <div class="fila" style="margin-top:16px">
+            <button id="boton-registrar">Registrar venta</button>
+            <button id="boton-vaciar" class="secundario">Vaciar</button>
+        </div>
+    </section>
+
+    <section class="panel">
+        <div class="fila" style="justify-content:space-between; margin-bottom:14px">
+            <div>
+                <h2 style="margin:0">Ventas registradas</h2>
+                <p class="ayuda" style="margin:2px 0 0">Filtra por rango de fechas y despliega una fila para ver sus items.</p>
+            </div>
+        </div>
+
+        <div class="fila" style="margin-bottom:16px">
+            <div style="flex:1; min-width:200px">
+                <label for="desde">Desde</label>
+                <input id="desde" type="datetime-local">
+            </div>
+            <div style="flex:1; min-width:200px">
+                <label for="hasta">Hasta</label>
+                <input id="hasta" type="datetime-local">
+            </div>
+            <button id="boton-filtrar">Filtrar</button>
+            <button id="boton-limpiar-filtro" class="secundario">Quitar filtros</button>
+        </div>
+
+        <div class="tabla-envoltura">
+            <table>
+                <thead>
+                <tr>
+                    <th>Id</th>
+                    <th>Fecha</th>
+                    <th class="numero">Items</th>
+                    <th class="numero">Total</th>
+                    <th>Estado</th>
+                    <th>Acciones</th>
+                </tr>
+                </thead>
+                <tbody id="cuerpo-ventas"></tbody>
+            </table>
+        </div>
+        <div class="paginacion" id="paginacion-ventas"></div>
+    </section>
+</main>
+
+<dialog id="modal-anular">
+    <form id="formulario-anular">
+        <h3>Anular venta</h3>
+        <p class="ayuda" id="anular-venta"></p>
+        <div>
+            <label for="motivo">Motivo (minimo 5 caracteres)</label>
+            <textarea id="motivo" rows="3" minlength="5" required
+                      placeholder="Cantidad registrada por error, se corrige con una nueva venta."></textarea>
+        </div>
+        <div class="acciones-modal">
+            <button type="button" class="secundario" data-cerrar>Cancelar</button>
+            <button type="submit" class="peligro">Anular venta</button>
+        </div>
+    </form>
+</dialog>
+
+<div id="avisos"></div>
+<p class="pie">
+    InventaYa · Entrega 2 P2 · <a href="http://localhost:8081/swagger-ui.html" target="_blank">Swagger de Ventas</a>
+</p>
+
+<script type="module" src="assets/ventas.js"></script>
+</body>
+</html>

@@ -1,0 +1,193 @@
+openapi: 3.0.3
+info:
+  title: InventaYa - Servicio de Inventario
+  description: >
+    API REST para el catálogo de productos y el control de stock.
+    Este servicio también consume los eventos "venta-realizada" y
+    "venta-anulada" desde Kafka para mantener el stock actualizado,
+    y publica el evento "stock-bajo" cuando corresponde.
+
+
+    ### Códigos de respuesta HTTP usados en esta API
+
+    | Código | Significado | Cuándo se usa |
+    |---|---|---|
+    | 200 OK | La solicitud se procesó correctamente y se devuelve el recurso. | Consultas (GET) y actualización de stock exitosa. |
+    | 201 Created | El recurso se creó correctamente. | Al registrar un producto nuevo en el catálogo. |
+    | 400 Bad Request | Los datos enviados no son válidos. | Body inválido en POST/PUT. |
+    | 401 Unauthorized | No se envió un token JWT o el token no es válido. | Cualquier endpoint que requiera autenticación. |
+    | 403 Forbidden | El token es válido pero el usuario no tiene permisos para esta acción. | Crear productos o ajustar stock sin rol de administrador. |
+    | 404 Not Found | El recurso solicitado no existe. | Consultar o actualizar un producto con un id que no existe. |
+    | 409 Conflict | La solicitud es válida pero entra en conflicto con el estado actual del recurso. | Intentar descontar más stock del disponible. |
+    | 500 Internal Server Error | Ocurrió un error inesperado en el servidor. | Fallas no controladas. |
+  version: "1.0.0"
+
+servers:
+  - url: http://localhost:8082
+    description: Entorno local (Docker Compose)
+
+tags:
+  - name: Productos
+    description: Catálogo de productos y control de stock
+
+paths:
+  /api/productos:
+    get:
+      tags: [Productos]
+      summary: Listar productos
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: 200 OK — Listado de productos obtenido correctamente.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Producto' }
+        '401':
+          description: 401 Unauthorized — No se envió un token JWT válido.
+        '500':
+          description: 500 Internal Server Error — Error inesperado al consultar el catálogo.
+
+    post:
+      tags: [Productos]
+      summary: Registrar un producto nuevo
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ProductoInput' }
+            example:
+              nombre: "Arroz 500g"
+              precio: 3200
+              stockInicial: 50
+              umbralMinimo: 10
+      responses:
+        '201':
+          description: 201 Created — El producto se registró exitosamente en el catálogo.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Producto' }
+              example:
+                id: "c1d2e3f4-5678-90ab-cdef-1234567890ab"
+                nombre: "Arroz 500g"
+                precio: 3200
+                stock: 50
+                umbralMinimo: 10
+        '400':
+          description: 400 Bad Request — Datos inválidos (nombre vacío, precio negativo, umbral negativo).
+        '401':
+          description: 401 Unauthorized — No se envió un token JWT válido.
+        '403':
+          description: 403 Forbidden — El usuario no tiene rol de administrador.
+        '500':
+          description: 500 Internal Server Error — Error inesperado al registrar el producto.
+
+  /api/productos/{id}:
+    get:
+      tags: [Productos]
+      summary: Consultar un producto por id
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: 200 OK — El producto fue encontrado y se devuelve completo.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Producto' }
+        '401':
+          description: 401 Unauthorized — No se envió un token JWT válido.
+        '404':
+          description: 404 Not Found — No existe un producto con el id indicado.
+        '500':
+          description: 500 Internal Server Error — Error inesperado al consultar el producto.
+
+  /api/productos/{id}/stock:
+    put:
+      tags: [Productos]
+      summary: Ajustar el stock de un producto
+      description: >
+        Actualiza manualmente el stock (ej. reposición de proveedor). El
+        descuento por ventas normales ocurre automáticamente al consumir
+        eventos de Kafka, no a través de este endpoint.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/StockUpdateInput' }
+            example:
+              operacion: "INCREMENTO"
+              cantidad: 30
+      responses:
+        '200':
+          description: 200 OK — El stock se actualizó correctamente.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Producto' }
+        '400':
+          description: 400 Bad Request — La cantidad enviada es inválida.
+        '401':
+          description: 401 Unauthorized — No se envió un token JWT válido.
+        '403':
+          description: 403 Forbidden — El usuario no tiene rol de administrador.
+        '404':
+          description: 404 Not Found — No existe un producto con el id indicado.
+        '409':
+          description: 409 Conflict — Se intenta descontar más stock del disponible.
+        '500':
+          description: 500 Internal Server Error — Error inesperado al actualizar el stock.
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    ProductoInput:
+      type: object
+      required: [nombre, precio, stockInicial, umbralMinimo]
+      properties:
+        nombre: { type: string, minLength: 1 }
+        precio: { type: number, format: double, minimum: 0 }
+        stockInicial: { type: integer, minimum: 0 }
+        umbralMinimo: { type: integer, minimum: 0 }
+
+    StockUpdateInput:
+      type: object
+      required: [operacion, cantidad]
+      properties:
+        operacion: { type: string, enum: [INCREMENTO, DECREMENTO] }
+        cantidad: { type: integer, minimum: 1 }
+
+    Producto:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        nombre: { type: string }
+        precio: { type: number, format: double }
+        stock: { type: integer }
+        umbralMinimo: { type: integer }
+
+    ErrorResponse:
+      type: object
+      properties:
+        codigo: { type: integer }
+        mensaje: { type: string }
+        timestamp: { type: string, format: date-time }

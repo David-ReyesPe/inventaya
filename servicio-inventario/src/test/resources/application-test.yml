@@ -1,0 +1,32 @@
+# Perfil de pruebas: base H2 en memoria creada desde las entidades (Flyway solo corre contra
+# Postgres) y Kafka desactivado a nivel de conexion -- los productores se sustituyen por mocks
+# y el consumidor se invoca directamente desde las pruebas.
+spring:
+  datasource:
+    url: jdbc:h2:mem:inventaya_inventario;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ""
+
+  flyway:
+    enabled: false
+
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+
+  kafka:
+    bootstrap-servers: localhost:19092
+    listener:
+      auto-startup: false
+
+inventaya:
+  jwt:
+    secret: clave-de-pruebas-inventaya-con-mas-de-32-caracteres
+  kafka:
+    crear-topicos: false
+
+logging:
+  level:
+    com.inventaya: DEBUG
+    org.hibernate.SQL: WARN

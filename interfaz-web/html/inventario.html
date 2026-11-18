@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inventario · InventaYa</title>
+    <link rel="stylesheet" href="assets/estilos.css">
+</head>
+<body>
+
+<header class="cabecera">
+    <div class="marca">Inventa<span>Ya</span></div>
+    <nav class="navegacion">
+        <a href="dashboard.html" data-pagina="dashboard">Dashboard</a>
+        <a href="ventas.html" data-pagina="ventas">Ventas</a>
+        <a href="inventario.html" data-pagina="inventario">Inventario</a>
+    </nav>
+    <div class="sesion">
+        <span class="sesion-estado" id="sesion-estado"></span>
+        <select id="selector-rol" style="width:auto">
+            <option value="ADMIN">ADMIN</option>
+            <option value="USER">USER</option>
+        </select>
+        <button id="boton-entrar" class="pequeno">Obtener token</button>
+        <button id="boton-salir" class="secundario pequeno">Salir</button>
+    </div>
+</header>
+
+<main>
+    <h1>Servicio de Inventario</h1>
+    <p class="subtitulo">
+        Catalogo de productos, ajustes manuales de stock y umbrales minimos.
+        Puerto 8082 · rutas <span class="mono">/api/productos</span>
+    </p>
+
+    <div class="aviso error oculto" id="error-general"></div>
+
+    <section class="panel">
+        <h2>Registrar producto</h2>
+        <p class="ayuda">
+            Requiere rol ADMIN. Si el stock inicial queda por debajo del umbral minimo, Inventario
+            genera de inmediato una alerta de stock bajo que veras en el dashboard.
+        </p>
+        <form id="formulario-producto">
+            <div class="rejilla">
+                <div>
+                    <label for="nombre">Nombre</label>
+                    <input id="nombre" name="nombre" required placeholder="Arroz 500g">
+                </div>
+                <div>
+                    <label for="precio">Precio unitario</label>
+                    <input id="precio" name="precio" type="number" min="0" step="1" required placeholder="3200">
+                </div>
+                <div>
+                    <label for="stockInicial">Stock inicial</label>
+                    <input id="stockInicial" name="stockInicial" type="number" min="0" step="1" required placeholder="50">
+                </div>
+                <div>
+                    <label for="umbralMinimo">Umbral minimo</label>
+                    <input id="umbralMinimo" name="umbralMinimo" type="number" min="0" step="1" required placeholder="10">
+                </div>
+            </div>
+            <div class="fila" style="margin-top:14px">
+                <button type="submit" id="boton-crear">Crear producto</button>
+                <button type="reset" class="secundario">Limpiar</button>
+            </div>
+        </form>
+    </section>
+
+    <section class="panel">
+        <div class="fila" style="justify-content:space-between; margin-bottom:14px">
+            <div>
+                <h2 style="margin:0">Catalogo</h2>
+                <p class="ayuda" style="margin:2px 0 0">
+                    Las filas resaltadas son productos cuyo stock esta por debajo del umbral minimo.
+                </p>
+            </div>
+            <button class="secundario pequeno" id="boton-recargar">Recargar</button>
+        </div>
+
+        <div class="tabla-envoltura">
+            <table>
+                <thead>
+                <tr>
+                    <th>Id</th>
+                    <th>Nombre</th>
+                    <th class="numero">Precio</th>
+                    <th class="numero">Stock</th>
+                    <th class="numero">Umbral</th>
+                    <th>Estado</th>
+                    <th>Acciones</th>
+                </tr>
+                </thead>
+                <tbody id="cuerpo-productos"></tbody>
+            </table>
+        </div>
+        <div class="paginacion" id="paginacion-productos"></div>
+    </section>
+</main>
+
+<dialog id="modal-stock">
+    <form id="formulario-stock">
+        <h3>Ajustar stock</h3>
+        <p class="ayuda" id="stock-producto"></p>
+        <div class="rejilla">
+            <div>
+                <label for="operacion">Operacion</label>
+                <select id="operacion" name="operacion">
+                    <option value="INCREMENTO">INCREMENTO (entrada)</option>
+                    <option value="DECREMENTO">DECREMENTO (salida)</option>
+                </select>
+            </div>
+            <div>
+                <label for="cantidad">Cantidad</label>
+                <input id="cantidad" name="cantidad" type="number" min="1" step="1" value="1" required>
+            </div>
+        </div>
+        <div class="acciones-modal">
+            <button type="button" class="secundario" data-cerrar>Cancelar</button>
+            <button type="submit">Aplicar ajuste</button>
+        </div>
+    </form>
+</dialog>
+
+<dialog id="modal-editar">
+    <form id="formulario-editar">
+        <h3>Editar producto</h3>
+        <p class="ayuda">El stock no se edita aqui: se ajusta con la accion "Stock" o por eventos de venta.</p>
+        <div class="rejilla">
+            <div>
+                <label for="editar-nombre">Nombre</label>
+                <input id="editar-nombre" name="nombre" required>
+            </div>
+            <div>
+                <label for="editar-precio">Precio</label>
+                <input id="editar-precio" name="precio" type="number" min="0" step="1" required>
+            </div>
+            <div>
+                <label for="editar-umbral">Umbral minimo</label>
+                <input id="editar-umbral" name="umbralMinimo" type="number" min="0" step="1" required>
+            </div>
+        </div>
+        <div class="acciones-modal">
+            <button type="button" class="secundario" data-cerrar>Cancelar</button>
+            <button type="submit">Guardar cambios</button>
+        </div>
+    </form>
+</dialog>
+
+<div id="avisos"></div>
+<p class="pie">
+    InventaYa · Entrega 2 P2 · <a href="http://localhost:8082/swagger-ui.html" target="_blank">Swagger de Inventario</a>
+</p>
+
+<script type="module" src="assets/inventario.js"></script>
+</body>
+</html>

@@ -1,0 +1,291 @@
+openapi: 3.0.3
+info:
+  title: InventaYa - Servicio de Ventas
+  description: >
+    API REST para el registro, consulta y anulación de ventas.
+    Una venta puede incluir uno o varios productos (líneas de venta).
+    Cada venta registrada publica el evento "venta-realizada" en Kafka
+    (tópico ventas-topic), incluyendo todas sus líneas, para que el
+    Servicio de Inventario descuente el stock de cada producto. Las
+    ventas nunca se editan: si un registro es incorrecto, se anula
+    (evento "venta-anulada") y se crea una venta nueva con los datos
+    corregidos.
+
+
+    ### Decisión de diseño: registro de ventas por REST directo
+
+    El registro de ventas (POST /api/ventas) se realiza directamente
+    desde el Punto de Venta (POS) contra esta API REST, SIN pasar por el
+    Gateway GraphQL. Por eso el esquema GraphQL no expone una mutación
+    para registrar ventas. Esta decisión se tomó porque el POS es un
+    cliente de alta frecuencia que necesita baja latencia y una
+    integración simple contra un único servicio; el Gateway GraphQL se
+    reserva para el Dashboard Administrativo, que sí necesita agregar
+    datos de varios servicios (inventario, ventas, alertas) en una sola
+    consulta.
+
+
+    ### Códigos de respuesta HTTP usados en esta API
+
+    | Código | Significado | Cuándo se usa |
+    |---|---|---|
+    | 200 OK | La solicitud se procesó correctamente y se devuelve el recurso. | Consultas (GET) y anulación de venta exitosa. |
+    | 201 Created | El recurso se creó correctamente. | Al registrar una venta nueva con éxito. |
+    | 202 Accepted | La solicitud fue aceptada, pero su efecto secundario (compensar el inventario) se procesa de forma asíncrona vía Kafka. | Al anular una venta. |
+    | 400 Bad Request | Los datos enviados no son válidos. | Body inválido en POST o parámetros de fecha inválidos en GET. |
+    | 401 Unauthorized | No se envió un token JWT o el token no es válido. | Cualquier endpoint que requiera autenticación. |
+    | 403 Forbidden | El token es válido pero el usuario no tiene permisos para esta acción. | Anular una venta sin rol de administrador/supervisor. |
+    | 404 Not Found | El recurso solicitado no existe. | Consultar o anular una venta con un id que no existe. |
+    | 409 Conflict | La solicitud es válida pero entra en conflicto con el estado actual del recurso. | Intentar anular una venta que ya estaba anulada; stock insuficiente. |
+    | 500 Internal Server Error | Ocurrió un error inesperado en el servidor. | Fallas no controladas (ej. no se pudo publicar el evento en Kafka). |
+  version: "1.0.0"
+
+servers:
+  - url: http://localhost:8081
+    description: Entorno local (Docker Compose)
+
+tags:
+  - name: Ventas
+    description: Registro, consulta y anulación de ventas
+
+paths:
+  /api/ventas:
+    post:
+      tags: [Ventas]
+      summary: Registrar una venta con uno o varios productos
+      description: >
+        Registra una nueva venta con una o más líneas de producto
+        (items), la persiste y publica el evento "venta-realizada" en
+        el tópico ventas-topic de Kafka, incluyendo el detalle de todos
+        los items para que el Servicio de Inventario descuente el stock
+        de cada producto vendido.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VentaInput'
+            example:
+              items:
+                - productoId: "b3f1c2a0-1234-4a56-9abc-1234567890ab"
+                  cantidad: 3
+                  precioUnitario: 4500
+                - productoId: "a9d8e7f6-4321-4b65-8fed-0987654321cd"
+                  cantidad: 1
+                  precioUnitario: 8000
+      responses:
+        '201':
+          description: >
+            201 Created — La venta se registró exitosamente con todas
+            sus líneas. Se devuelve el recurso creado, incluyendo su id,
+            el detalle de cada item, el total y el estado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Venta'
+              example:
+                id: "e7a1f9d0-9c2b-4a11-8f3e-abc123456789"
+                items:
+                  - productoId: "b3f1c2a0-1234-4a56-9abc-1234567890ab"
+                    cantidad: 3
+                    precioUnitario: 4500
+                    subtotal: 13500
+                  - productoId: "a9d8e7f6-4321-4b65-8fed-0987654321cd"
+                    cantidad: 1
+                    precioUnitario: 8000
+                    subtotal: 8000
+                total: 21500
+                estado: "REGISTRADA"
+                fecha: "2026-08-19T15:32:00Z"
+        '400':
+          description: >
+            400 Bad Request — Datos inválidos: no se envió ningún item,
+            un item tiene cantidad menor o igual a cero, o precio
+            negativo.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                codigo: 400
+                mensaje: "La venta debe incluir al menos un producto."
+                timestamp: "2026-08-19T15:32:00Z"
+        '401':
+          description: 401 Unauthorized — No se envió un token JWT válido.
+        '409':
+          description: >
+            409 Conflict — No hay stock suficiente de uno o más productos
+            de la venta para completarla. La venta completa se rechaza
+            (no se registran ventas parciales).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                codigo: 409
+                mensaje: "Stock insuficiente para el producto b3f1c2a0-1234-4a56-9abc-1234567890ab."
+                timestamp: "2026-08-19T15:32:00Z"
+        '500':
+          description: 500 Internal Server Error — Error inesperado, por ejemplo al persistir la venta o publicar el evento en Kafka.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    get:
+      tags: [Ventas]
+      summary: Listar ventas
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: desde
+          in: query
+          required: false
+          schema: { type: string, format: date-time }
+        - name: hasta
+          in: query
+          required: false
+          schema: { type: string, format: date-time }
+      responses:
+        '200':
+          description: 200 OK — Listado obtenido correctamente (puede ser un arreglo vacío).
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Venta' }
+        '400':
+          description: 400 Bad Request — El rango de fechas es inválido.
+        '401':
+          description: 401 Unauthorized — No se envió un token JWT válido.
+        '500':
+          description: 500 Internal Server Error — Error inesperado al consultar las ventas.
+
+  /api/ventas/{id}:
+    get:
+      tags: [Ventas]
+      summary: Consultar una venta por id
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: 200 OK — La venta fue encontrada y se devuelve completa.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Venta' }
+        '401':
+          description: 401 Unauthorized — No se envió un token JWT válido.
+        '404':
+          description: 404 Not Found — No existe una venta con el id indicado.
+        '500':
+          description: 500 Internal Server Error — Error inesperado al consultar la venta.
+
+  /api/ventas/{id}/anular:
+    patch:
+      tags: [Ventas]
+      summary: Anular una venta
+      description: >
+        Marca la venta como ANULADA (no la elimina) y publica el evento
+        "venta-anulada" en Kafka, para que el Servicio de Inventario
+        revierta el descuento de stock de todos los items. Para registrar
+        la venta corregida se debe crear una venta nueva con
+        POST /api/ventas.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AnulacionInput' }
+            example:
+              motivo: "Cantidad registrada por error, se corrige con una nueva venta."
+      responses:
+        '202':
+          description: >
+            202 Accepted — La venta queda marcada como ANULADA de
+            inmediato; la reversión de stock de cada producto ocurre de
+            forma asíncrona al consumir el evento "venta-anulada".
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Venta' }
+        '400':
+          description: 400 Bad Request — Falta el motivo de anulación.
+        '401':
+          description: 401 Unauthorized — No se envió un token JWT válido.
+        '403':
+          description: 403 Forbidden — El usuario no tiene el rol necesario para anular ventas.
+        '404':
+          description: 404 Not Found — No existe una venta con el id indicado.
+        '409':
+          description: 409 Conflict — La venta ya se encontraba anulada previamente.
+        '500':
+          description: 500 Internal Server Error — Error inesperado al anular la venta.
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    VentaItemInput:
+      type: object
+      required: [productoId, cantidad, precioUnitario]
+      properties:
+        productoId: { type: string, format: uuid }
+        cantidad: { type: integer, minimum: 1 }
+        precioUnitario: { type: number, format: double, minimum: 0 }
+
+    VentaInput:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          minItems: 1
+          items: { $ref: '#/components/schemas/VentaItemInput' }
+
+    AnulacionInput:
+      type: object
+      required: [motivo]
+      properties:
+        motivo: { type: string, minLength: 5 }
+
+    VentaItem:
+      type: object
+      properties:
+        productoId: { type: string, format: uuid }
+        cantidad: { type: integer }
+        precioUnitario: { type: number, format: double }
+        subtotal: { type: number, format: double }
+
+    Venta:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/VentaItem' }
+        total: { type: number, format: double }
+        estado: { type: string, enum: [REGISTRADA, ANULADA] }
+        fecha: { type: string, format: date-time }
+
+    ErrorResponse:
+      type: object
+      properties:
+        codigo: { type: integer }
+        mensaje: { type: string }
+        timestamp: { type: string, format: date-time }

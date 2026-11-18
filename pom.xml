@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>com.inventaya</groupId>
+    <artifactId>inventaya</artifactId>
+    <version>1.0.0</version>
+    <packaging>pom</packaging>
+
+    <name>InventaYa</name>
+    <description>
+        Agregador del monorepo InventaYa. Permite compilar y probar todos los servicios
+        con un solo comando desde la raiz (mvn test / mvn package).
+
+        Cada modulo declara spring-boot-starter-parent como su parent (no este pom), de forma
+        que tambien puede construirse de manera independiente -- por ejemplo dentro de un
+        contenedor con "build: ./servicio-ventas" en docker-compose, donde el contexto de
+        build no incluye la raiz del monorepo.
+    </description>
+
+    <modules>
+        <module>servicio-ventas</module>
+        <module>servicio-inventario</module>
+        <!-- Pendientes de entregas siguientes: servicio-notificaciones, gateway-graphql -->
+    </modules>
+</project>

@@ -1,0 +1,480 @@
+:root {
+    --fondo: #0f1620;
+    --fondo-panel: #17212e;
+    --fondo-panel-alt: #1e2a3a;
+    --borde: #2a3a4d;
+    --texto: #e8eef6;
+    --texto-suave: #93a4b8;
+    --acento: #38bdf8;
+    --acento-fuerte: #0284c7;
+    --ok: #34d399;
+    --alerta: #fbbf24;
+    --error: #f87171;
+    --radio: 10px;
+    --sombra: 0 6px 20px rgba(0, 0, 0, .35);
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    background: var(--fondo);
+    color: var(--texto);
+    font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+    font-size: 15px;
+    line-height: 1.5;
+}
+
+/* ---------- Encabezado y navegacion ---------- */
+
+.cabecera {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    flex-wrap: wrap;
+    padding: 14px 28px;
+    background: var(--fondo-panel);
+    border-bottom: 1px solid var(--borde);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+.marca {
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: .3px;
+}
+
+.marca span {
+    color: var(--acento);
+}
+
+.navegacion {
+    display: flex;
+    gap: 6px;
+}
+
+.navegacion a {
+    color: var(--texto-suave);
+    text-decoration: none;
+    padding: 8px 14px;
+    border-radius: var(--radio);
+    font-weight: 500;
+}
+
+.navegacion a:hover {
+    background: var(--fondo-panel-alt);
+    color: var(--texto);
+}
+
+.navegacion a.activo {
+    background: var(--acento-fuerte);
+    color: #fff;
+}
+
+.sesion {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.sesion-estado {
+    font-size: 13px;
+    color: var(--texto-suave);
+}
+
+.insignia-rol {
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+    background: var(--acento-fuerte);
+    color: #fff;
+}
+
+.insignia-rol.usuario {
+    background: #475569;
+}
+
+/* ---------- Estructura ---------- */
+
+main {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 26px 28px 60px;
+}
+
+h1 {
+    font-size: 24px;
+    margin: 0 0 6px;
+}
+
+.subtitulo {
+    color: var(--texto-suave);
+    margin: 0 0 24px;
+}
+
+.panel {
+    background: var(--fondo-panel);
+    border: 1px solid var(--borde);
+    border-radius: var(--radio);
+    padding: 20px;
+    margin-bottom: 22px;
+    box-shadow: var(--sombra);
+}
+
+.panel h2 {
+    font-size: 17px;
+    margin: 0 0 4px;
+}
+
+.panel .ayuda {
+    color: var(--texto-suave);
+    font-size: 13px;
+    margin: 0 0 16px;
+}
+
+.rejilla {
+    display: grid;
+    gap: 14px;
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+}
+
+.fila {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    align-items: flex-end;
+}
+
+/* ---------- Formularios ---------- */
+
+label {
+    display: block;
+    font-size: 13px;
+    color: var(--texto-suave);
+    margin-bottom: 5px;
+}
+
+input,
+select,
+textarea {
+    width: 100%;
+    padding: 9px 11px;
+    background: var(--fondo);
+    color: var(--texto);
+    border: 1px solid var(--borde);
+    border-radius: 8px;
+    font-size: 14px;
+    font-family: inherit;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+    outline: 2px solid var(--acento);
+    outline-offset: -1px;
+}
+
+button {
+    padding: 9px 16px;
+    background: var(--acento-fuerte);
+    color: #fff;
+    border: 0;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+button:hover:not(:disabled) {
+    filter: brightness(1.15);
+}
+
+button:disabled {
+    opacity: .45;
+    cursor: not-allowed;
+}
+
+button.secundario {
+    background: var(--fondo-panel-alt);
+    border: 1px solid var(--borde);
+}
+
+button.peligro {
+    background: #b91c1c;
+}
+
+button.pequeno {
+    padding: 5px 10px;
+    font-size: 13px;
+}
+
+/* ---------- Tablas ---------- */
+
+.tabla-envoltura {
+    overflow-x: auto;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+}
+
+th {
+    text-align: left;
+    padding: 9px 10px;
+    color: var(--texto-suave);
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: .5px;
+    border-bottom: 1px solid var(--borde);
+    white-space: nowrap;
+}
+
+td {
+    padding: 10px;
+    border-bottom: 1px solid rgba(42, 58, 77, .55);
+    vertical-align: middle;
+}
+
+tbody tr:hover {
+    background: rgba(56, 189, 248, .05);
+}
+
+.numero {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+.mono {
+    font-family: Consolas, "Courier New", monospace;
+    font-size: 12.5px;
+    color: var(--texto-suave);
+}
+
+.vacio {
+    padding: 26px;
+    text-align: center;
+    color: var(--texto-suave);
+}
+
+.fila-riesgo {
+    background: rgba(251, 191, 36, .08);
+}
+
+/* ---------- Insignias ---------- */
+
+.insignia {
+    display: inline-block;
+    padding: 3px 9px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.insignia.ok {
+    background: rgba(52, 211, 153, .15);
+    color: var(--ok);
+}
+
+.insignia.baja {
+    background: rgba(251, 191, 36, .16);
+    color: var(--alerta);
+}
+
+.insignia.anulada {
+    background: rgba(248, 113, 113, .15);
+    color: var(--error);
+}
+
+/* ---------- Indicadores del dashboard ---------- */
+
+.indicadores {
+    display: grid;
+    gap: 14px;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    margin-bottom: 22px;
+}
+
+.indicador {
+    background: var(--fondo-panel);
+    border: 1px solid var(--borde);
+    border-left: 3px solid var(--acento);
+    border-radius: var(--radio);
+    padding: 16px 18px;
+}
+
+.indicador.atencion {
+    border-left-color: var(--alerta);
+}
+
+.indicador.negativo {
+    border-left-color: var(--error);
+}
+
+.indicador .etiqueta {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: .5px;
+    color: var(--texto-suave);
+}
+
+.indicador .valor {
+    font-size: 27px;
+    font-weight: 700;
+    margin-top: 5px;
+    font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Notificaciones de stock bajo ---------- */
+
+.notificaciones {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.notificacion {
+    display: flex;
+    gap: 14px;
+    align-items: center;
+    padding: 13px 15px;
+    background: var(--fondo-panel-alt);
+    border: 1px solid var(--borde);
+    border-left: 3px solid var(--alerta);
+    border-radius: 8px;
+}
+
+.notificacion.atendida {
+    border-left-color: var(--ok);
+    opacity: .72;
+}
+
+.notificacion .icono {
+    font-size: 20px;
+}
+
+.notificacion .cuerpo {
+    flex: 1;
+    min-width: 0;
+}
+
+.notificacion .titulo {
+    font-weight: 600;
+}
+
+.notificacion .detalle {
+    font-size: 13px;
+    color: var(--texto-suave);
+}
+
+/* ---------- Paginacion ---------- */
+
+.paginacion {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 14px;
+    font-size: 13px;
+    color: var(--texto-suave);
+}
+
+/* ---------- Avisos y modales ---------- */
+
+.aviso {
+    padding: 11px 14px;
+    border-radius: 8px;
+    margin-bottom: 14px;
+    font-size: 14px;
+}
+
+.aviso.error {
+    background: rgba(248, 113, 113, .12);
+    border: 1px solid rgba(248, 113, 113, .4);
+    color: #fecaca;
+}
+
+.aviso.info {
+    background: rgba(56, 189, 248, .1);
+    border: 1px solid rgba(56, 189, 248, .35);
+    color: #bae6fd;
+}
+
+.oculto {
+    display: none !important;
+}
+
+#avisos {
+    position: fixed;
+    right: 20px;
+    bottom: 20px;
+    z-index: 100;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-width: 380px;
+}
+
+.notificacion-flotante {
+    padding: 12px 16px;
+    border-radius: 8px;
+    box-shadow: var(--sombra);
+    font-size: 14px;
+    background: var(--fondo-panel-alt);
+    border-left: 3px solid var(--acento);
+}
+
+.notificacion-flotante.exito {
+    border-left-color: var(--ok);
+}
+
+.notificacion-flotante.error {
+    border-left-color: var(--error);
+}
+
+dialog {
+    background: var(--fondo-panel);
+    color: var(--texto);
+    border: 1px solid var(--borde);
+    border-radius: var(--radio);
+    padding: 22px;
+    min-width: 340px;
+    box-shadow: var(--sombra);
+}
+
+dialog::backdrop {
+    background: rgba(0, 0, 0, .6);
+}
+
+dialog h3 {
+    margin: 0 0 14px;
+    font-size: 17px;
+}
+
+.acciones-modal {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 18px;
+}
+
+.pie {
+    color: var(--texto-suave);
+    font-size: 13px;
+    text-align: center;
+    padding: 20px;
+}
+
+.pie a {
+    color: var(--acento);
+}

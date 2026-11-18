@@ -1,0 +1,557 @@
+openapi: 3.0.3
+info:
+  title: InventaYa - Servicio de Inventario
+  description: |
+    API REST para el catalogo de productos y el control de stock.
+    Este servicio tambien consume los eventos "venta-realizada" y
+    "venta-anulada" desde Kafka para mantener el stock actualizado,
+    y publica el evento "stock-bajo" cuando corresponde.
+
+    ### Codigos de respuesta HTTP usados en esta API
+
+    | Codigo | Significado | Cuando se usa |
+    |---|---|---|
+    | 200 OK | La solicitud se proceso correctamente y se devuelve el recurso. | Consultas (GET) y actualizacion de stock exitosa. |
+    | 201 Created | El recurso se creo correctamente. | Al registrar un producto nuevo en el catalogo. |
+    | 400 Bad Request | Los datos enviados no son validos. | Body invalido en POST/PUT (ej. precio negativo, stock negativo). |
+    | 401 Unauthorized | No se envio un token JWT o el token no es valido. | Cualquier endpoint que requiera autenticacion. |
+    | 403 Forbidden | El token es valido pero el usuario no tiene permisos para esta accion. | Crear productos o ajustar stock sin rol de administrador. |
+    | 404 Not Found | El recurso solicitado no existe. | Consultar o actualizar un producto con un id que no existe. |
+    | 409 Conflict | La solicitud es valida pero entra en conflicto con el estado actual del recurso. | Intentar descontar mas stock del disponible. |
+    | 500 Internal Server Error | Ocurrio un error inesperado en el servidor. | Fallas no controladas (ej. no se pudo publicar el evento de stock bajo). |
+  version: 1.0.0
+servers:
+- url: http://localhost:8082
+  description: Entorno local (Docker Compose)
+security:
+- bearerAuth: []
+tags:
+- name: Alertas
+  description: Consulta de alertas de stock bajo
+- name: Productos
+  description: Catalogo de productos y control de stock
+paths:
+  /api/productos/{id}:
+    get:
+      tags:
+      - Productos
+      summary: Consultar un producto por id
+      operationId: obtener
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "500":
+          description: 500 Internal Server Error - Error inesperado al consultar el
+            producto.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: 401 Unauthorized - No se envio un token JWT valido.
+        "200":
+          description: 200 OK - El producto fue encontrado y se devuelve completo.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Producto"
+        "404":
+          description: 404 Not Found - No existe un producto con el id indicado.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      security:
+      - bearerAuth: []
+    put:
+      tags:
+      - Productos
+      summary: Actualizar los datos de un producto
+      description: |-
+        Actualiza nombre, precio y umbral minimo de un producto existente. Extension de
+        esta entrega para completar el CRUD de RF1. El stock no se modifica aqui: se
+        ajusta con PUT /api/productos/{id}/stock o por consumo de eventos de venta.
+      operationId: actualizar
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProductoUpdateInput"
+        required: true
+      responses:
+        "500":
+          description: 500 Internal Server Error - Error inesperado al actualizar
+            el producto.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "200":
+          description: 200 OK - El producto se actualizo correctamente.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Producto"
+        "401":
+          description: 401 Unauthorized - No se envio un token JWT valido.
+        "403":
+          description: 403 Forbidden - El usuario no tiene rol de administrador.
+        "404":
+          description: 404 Not Found - No existe un producto con el id indicado.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "400":
+          description: "400 Bad Request - Datos invalidos: nombre vacio, precio negativo\
+            \ o umbral minimo negativo."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      security:
+      - bearerAuth: []
+  /api/productos/{id}/stock:
+    put:
+      tags:
+      - Productos
+      summary: Ajustar el stock de un producto
+      description: |-
+        Actualiza manualmente el stock de un producto (por ejemplo, al recibir mercancia
+        de un proveedor). El descuento de stock por ventas normales ocurre automaticamente
+        al consumir eventos de Kafka, no a traves de este endpoint.
+      operationId: ajustarStock
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StockUpdateInput"
+        required: true
+      responses:
+        "200":
+          description: 200 OK - El stock se actualizo correctamente.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Producto"
+        "500":
+          description: 500 Internal Server Error - Error inesperado al actualizar
+            el stock.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: 401 Unauthorized - No se envio un token JWT valido.
+        "403":
+          description: 403 Forbidden - El usuario no tiene rol de administrador.
+        "409":
+          description: 409 Conflict - Se intenta descontar mas stock del disponible
+            (el resultado seria negativo).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: 404 Not Found - No existe un producto con el id indicado.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "400":
+          description: 400 Bad Request - La cantidad enviada es invalida (cero o negativa).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      security:
+      - bearerAuth: []
+  /api/productos:
+    get:
+      tags:
+      - Productos
+      summary: Listar productos
+      description: |-
+        Devuelve el catalogo de productos de forma paginada. La respuesta incluye el
+        arreglo de elementos en 'contenido' y los parametros de navegacion de pagina
+        posterior y anterior ('tienePaginaSiguiente', 'tienePaginaAnterior', etc.),
+        ademas de los encabezados HTTP correspondientes.
+      operationId: listar
+      parameters:
+      - name: page
+        in: query
+        description: Numero de pagina (base cero).
+        required: false
+        schema:
+          minimum: 0
+          type: integer
+          format: int32
+          default: 0
+      - name: size
+        in: query
+        description: Cantidad de elementos por pagina.
+        required: false
+        schema:
+          maximum: 200
+          minimum: 1
+          type: integer
+          format: int32
+          default: 20
+      responses:
+        "400":
+          description: 400 Bad Request - Parametros de paginacion invalidos.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: 500 Internal Server Error - Error inesperado al consultar el
+            catalogo.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: 401 Unauthorized - No se envio un token JWT valido.
+        "200":
+          description: 200 OK - Pagina del catalogo de productos obtenida correctamente.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaginaResponse"
+      security:
+      - bearerAuth: []
+    post:
+      tags:
+      - Productos
+      summary: Registrar un producto nuevo
+      operationId: crear
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProductoInput"
+        required: true
+      responses:
+        "201":
+          description: 201 Created - El producto se registro exitosamente en el catalogo.
+            Se devuelve el recurso creado con su id.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Producto"
+        "500":
+          description: 500 Internal Server Error - Error inesperado al registrar el
+            producto.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: 401 Unauthorized - No se envio un token JWT valido.
+        "403":
+          description: 403 Forbidden - El usuario no tiene rol de administrador.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "400":
+          description: "400 Bad Request - Datos invalidos: nombre vacio, precio negativo\
+            \ o umbral minimo negativo."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      security:
+      - bearerAuth: []
+  /api/alertas:
+    get:
+      tags:
+      - Alertas
+      summary: Listar alertas de stock bajo
+      description: |-
+        Devuelve las alertas generadas cuando el stock de un producto quedo por debajo de
+        su umbral minimo, ordenadas de la mas reciente a la mas antigua. Cada alerta de
+        esta lista corresponde a un evento "stock-bajo" publicado en alertas-topic.
+        La respuesta incluye los metadatos de navegacion con 'tienePaginaSiguiente' y
+        'tienePaginaAnterior' en el cuerpo JSON y en encabezados HTTP.
+      operationId: listar_1
+      parameters:
+      - name: atendida
+        in: query
+        description: "Filtra por alertas atendidas (true) o pendientes (false). Si\
+          \ se omite, devuelve todas."
+        required: false
+        schema:
+          type: boolean
+      - name: page
+        in: query
+        description: Numero de pagina (base cero).
+        required: false
+        schema:
+          minimum: 0
+          type: integer
+          format: int32
+          default: 0
+      - name: size
+        in: query
+        description: Cantidad de elementos por pagina.
+        required: false
+        schema:
+          maximum: 200
+          minimum: 1
+          type: integer
+          format: int32
+          default: 20
+      responses:
+        "500":
+          description: 500 Internal Server Error - Error inesperado al consultar las
+            alertas.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "200":
+          description: 200 OK - Listado de alertas obtenido correctamente (puede ser
+            vacio).
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AlertaStock"
+        "401":
+          description: 401 Unauthorized - No se envio un token JWT valido.
+        "400":
+          description: 400 Bad Request - Parametros de consulta invalidos.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      security:
+      - bearerAuth: []
+components:
+  schemas:
+    ProductoUpdateInput:
+      required:
+      - nombre
+      - precio
+      - umbralMinimo
+      type: object
+      properties:
+        nombre:
+          type: string
+          description: Nombre del producto.
+          example: Arroz premium 500g
+        precio:
+          minimum: 0.0
+          exclusiveMinimum: false
+          type: number
+          description: Precio unitario de venta.
+          format: double
+          example: 3500
+        umbralMinimo:
+          minimum: 0
+          type: integer
+          description: Stock por debajo del cual se genera una alerta de stock bajo.
+          format: int32
+          example: 15
+      description: Datos editables de un producto (no incluye stock)
+    ErrorResponse:
+      type: object
+      properties:
+        codigo:
+          type: integer
+          description: Codigo HTTP del error.
+          format: int32
+          example: 404
+        mensaje:
+          type: string
+          description: Explicacion legible del error.
+          example: No se encontro el producto solicitado.
+        timestamp:
+          type: string
+          description: Momento en que se genero el error.
+          format: date-time
+          example: 2026-08-19T15:32:00Z
+      description: Respuesta estandar de error de la API
+    Producto:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Identificador del producto.
+          format: uuid
+          example: c1d2e3f4-5678-90ab-cdef-1234567890ab
+        nombre:
+          type: string
+          description: Nombre del producto.
+          example: Arroz 500g
+        precio:
+          type: number
+          description: Precio unitario de venta.
+          format: double
+          example: 3200
+        stock:
+          type: integer
+          description: Unidades disponibles.
+          format: int32
+          example: 50
+        umbralMinimo:
+          type: integer
+          description: Stock por debajo del cual se genera una alerta.
+          format: int32
+          example: 10
+      description: Producto del catalogo
+    StockUpdateInput:
+      required:
+      - cantidad
+      - operacion
+      type: object
+      properties:
+        operacion:
+          type: string
+          description: Tipo de ajuste a aplicar.
+          example: INCREMENTO
+          enum:
+          - INCREMENTO
+          - DECREMENTO
+        cantidad:
+          minimum: 1
+          type: integer
+          description: Unidades a sumar o restar.
+          format: int32
+          example: 30
+      description: Ajuste manual de stock de un producto
+    ProductoInput:
+      required:
+      - nombre
+      - precio
+      - stockInicial
+      - umbralMinimo
+      type: object
+      properties:
+        nombre:
+          type: string
+          description: Nombre del producto.
+          example: Arroz 500g
+        precio:
+          minimum: 0.0
+          exclusiveMinimum: false
+          type: number
+          description: Precio unitario de venta.
+          format: double
+          example: 3200
+        stockInicial:
+          minimum: 0
+          type: integer
+          description: Stock con el que se da de alta el producto.
+          format: int32
+          example: 50
+        umbralMinimo:
+          minimum: 0
+          type: integer
+          description: Stock por debajo del cual se genera una alerta de stock bajo.
+          format: int32
+          example: 10
+      description: Datos para registrar un producto nuevo en el catalogo
+    PaginaResponse:
+      type: object
+      properties:
+        contenido:
+          type: array
+          description: Listado de elementos en la pagina actual.
+          items:
+            type: object
+            description: Listado de elementos en la pagina actual.
+        paginaActual:
+          type: integer
+          description: Numero de la pagina actual (base cero).
+          format: int32
+          example: 0
+        tamanoPagina:
+          type: integer
+          description: Cantidad de elementos por pagina.
+          format: int32
+          example: 10
+        totalElementos:
+          type: integer
+          description: Cantidad total de elementos en todas las paginas.
+          format: int64
+          example: 25
+        totalPaginas:
+          type: integer
+          description: Cantidad total de paginas disponibles.
+          format: int32
+          example: 3
+        tienePaginaSiguiente:
+          type: boolean
+          description: Indica si existe una pagina posterior disponible.
+          example: true
+        tienePaginaAnterior:
+          type: boolean
+          description: Indica si existe una pagina anterior disponible.
+          example: false
+      description: Respuesta paginada con elementos y control de navegacion
+    AlertaStock:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Identificador de la alerta.
+          format: uuid
+          example: 7f2b91c4-4a10-4c9e-9d55-9911aabbccdd
+        productoId:
+          type: string
+          description: Producto afectado.
+          format: uuid
+          example: b3f1c2a0-1234-4a56-9abc-1234567890ab
+        productoNombre:
+          type: string
+          description: Nombre del producto al momento de consultar la alerta.
+          example: Arroz 500g
+        stockActual:
+          type: integer
+          description: Stock que tenia el producto cuando se genero la alerta.
+          format: int32
+          example: 4
+        umbralMinimo:
+          type: integer
+          description: Umbral minimo vigente cuando se genero la alerta.
+          format: int32
+          example: 10
+        fecha:
+          type: string
+          description: Momento en que se genero la alerta.
+          format: date-time
+          example: 2026-08-19T15:32:05Z
+        atendida:
+          type: boolean
+          description: "Indica si la alerta ya fue gestionada (por ejemplo, reponiendo\
+            \ stock)."
+          example: false
+      description: Registro de un producto que quedo por debajo de su umbral minimo
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT

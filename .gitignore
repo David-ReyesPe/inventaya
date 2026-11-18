@@ -1,0 +1,27 @@
+target/
+!.mvn/wrapper/maven-wrapper.jar
+.mvn/timing.properties
+
+*.class
+*.jar
+*.war
+
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+.settings/
+.project
+.classpath
+.factorypath
+
+*.log
+logs/
+
+.DS_Store
+Thumbs.db
+
+# Variables locales (el ejemplo versionado es .env.example)
+.env
+.chrome_temp/

@@ -1,0 +1,5 @@
+# Perfil de desarrollo: habilita /api/dev/token y sube el detalle de logs.
+logging:
+  level:
+    com.inventaya: DEBUG
+    org.springframework.kafka.listener: INFO

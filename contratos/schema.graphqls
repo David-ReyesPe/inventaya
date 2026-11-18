@@ -1,0 +1,86 @@
+# InventaYa — Esquema GraphQL inicial (Gateway)
+#
+# DECISIÓN DE DISEÑO — Registro de ventas:
+# El registro de una venta (POST /api/ventas) se realiza directamente
+# desde el Punto de Venta (POS) contra la API REST del Servicio de
+# Ventas, SIN pasar por este Gateway GraphQL. Por eso este esquema NO
+# incluye una mutación "registrarVenta". El POS es un cliente de alta
+# frecuencia que necesita baja latencia e integración simple contra un
+# único servicio. El Gateway GraphQL se reserva para el Dashboard
+# Administrativo, que sí necesita AGREGAR datos de varios servicios
+# (inventario + ventas + alertas) en una sola consulta, y para las
+# operaciones administrativas (crear producto, anular venta).
+
+type Producto {
+  id: ID!
+  nombre: String!
+  precio: Float!
+  stock: Int!
+  umbralMinimo: Int!
+}
+
+type VentaItem {
+  productoId: ID!
+  cantidad: Int!
+  precioUnitario: Float!
+  subtotal: Float!
+}
+
+enum EstadoVenta {
+  REGISTRADA
+  ANULADA
+}
+
+type Venta {
+  id: ID!
+  items: [VentaItem!]!
+  total: Float!
+  estado: EstadoVenta!
+  fecha: String!
+}
+
+type Alerta {
+  id: ID!
+  productoId: ID!
+  stockActual: Int!
+  umbralMinimo: Int!
+  fecha: String!
+  atendida: Boolean!
+}
+
+# ---------- Queries ----------
+
+type Query {
+  "Consulta un producto puntual del inventario."
+  inventario(productoId: ID!): Producto
+
+  "Lista todos los productos del catálogo."
+  productos: [Producto!]!
+
+  "Lista las ventas registradas en un rango de fechas (formato ISO-8601).
+   Nota: las ventas en sí se registran por REST (ver decisión arriba);
+   esta query solo las consulta para el dashboard."
+  ventasPorRango(desde: String!, hasta: String!): [Venta!]!
+
+  "Lista las alertas de stock bajo que aún no han sido atendidas."
+  alertasActivas: [Alerta!]!
+}
+
+# ---------- Mutations ----------
+
+input ProductoInput {
+  nombre: String!
+  precio: Float!
+  stockInicial: Int!
+  umbralMinimo: Int!
+}
+
+type Mutation {
+  "Registra un producto nuevo en el catálogo."
+  crearProducto(input: ProductoInput!): Producto!
+
+  "Anula una venta existente (no la edita) y dispara la reversión de
+   stock de todos sus items. El registro de la venta original y de la
+   venta corregida siempre ocurre por REST desde el POS, no aquí."
+  anularVenta(ventaId: ID!, motivo: String!): Venta!
+}

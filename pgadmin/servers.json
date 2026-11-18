@@ -1,0 +1,14 @@
+{
+  "Servers": {
+    "1": {
+      "Name": "InventaYa (inventaya_db)",
+      "Group": "Servers",
+      "Host": "postgres",
+      "Port": 5432,
+      "MaintenanceDB": "inventaya_db",
+      "Username": "inventaya",
+      "SSLMode": "prefer",
+      "Comment": "Base compartida del proyecto. El host es el nombre del servicio en la red de docker compose, no localhost."
+    }
+  }
+}

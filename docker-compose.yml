@@ -1,0 +1,223 @@
+# Nombre fijo del proyecto: sin esto Compose lo deriva del nombre de la carpeta, y al
+# renombrarla dejaria de reconocer los contenedores y volumenes ya creados.
+name: inventaya
+
+services:
+
+  postgres:
+    networks:
+      - inventaya-net
+    image: postgres:16
+    container_name: inventaya-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-inventaya_db}
+      POSTGRES_USER: ${POSTGRES_USER:-inventaya}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-inventaya}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  pgadmin:
+    networks:
+      - inventaya-net
+    image: dpage/pgadmin4:latest
+    container_name: inventaya-pgadmin
+    restart: unless-stopped
+    ports:
+      - "8084:80"
+    environment:
+      # pgAdmin rechaza dominios reservados como .local, de ahi el .com.
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@inventaya.com}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-inventaya}
+      # Sin esto pgAdmin pide una contraseña maestra extra al abrir el servidor.
+      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: "False"
+    volumes:
+      # Deja la conexión a inventaya_db ya registrada al primer arranque.
+      - ./pgadmin/servers.json:/pgadmin4/servers.json:ro
+      - pgadmin_data:/var/lib/pgadmin
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  kafka:
+    networks:
+      - inventaya-net
+    image: apache/kafka:3.8.0
+    container_name: inventaya-kafka
+    restart: unless-stopped
+    ports:
+      # 9092 para los contenedores de la red interna; 29092 para clientes en el host
+      # (Kafka UI externo, una app corriendo desde el IDE, kcat, etc.).
+      - "9092:9092"
+      - "29092:29092"
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://:9092,PLAINTEXT_HOST://:29092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      # ventas-topic y alertas-topic los declaran los servicios con su numero de
+      # particiones definitivo (3 y 1); este valor solo aplica a topicos creados
+      # automaticamente por un cliente.
+      KAFKA_NUM_PARTITIONS: 3
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 > /dev/null 2>&1"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 20s
+
+  kafka-ui:
+    networks:
+      - inventaya-net
+    image: provectuslabs/kafka-ui:latest
+    container_name: inventaya-kafka-ui
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: inventaya
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+      DYNAMIC_CONFIG_ENABLED: "true"
+    depends_on:
+      kafka:
+        condition: service_healthy
+
+  # ---------------------------------------------------------------
+  # Servicios de aplicación (Spring Boot).
+  #
+  # servicio-inventario es el dueño del esquema de inventaya_db: es el
+  # único que ejecuta las migraciones Flyway. Por eso servicio-ventas
+  # espera a que esté sano antes de arrancar; si arrancara primero, las
+  # tablas todavía no existirían.
+  # ---------------------------------------------------------------
+
+  servicio-inventario:
+    networks:
+      - inventaya-net
+    build: ./servicio-inventario
+    container_name: inventaya-servicio-inventario
+    restart: unless-stopped
+    ports:
+      - "8082:8082"
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-inventaya_db}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-inventaya}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-inventaya}
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      # Clave simétrica JWT compartida por todos los servicios (mínimo 32 caracteres).
+      INVENTAYA_JWT_SECRET: ${INVENTAYA_JWT_SECRET:-inventaya-clave-simetrica-de-desarrollo-cambiar-en-produccion}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8082/actuator/health | grep -q UP"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
+
+  servicio-ventas:
+    networks:
+      - inventaya-net
+    build: ./servicio-ventas
+    container_name: inventaya-servicio-ventas
+    restart: unless-stopped
+    ports:
+      - "8081:8081"
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-inventaya_db}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-inventaya}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-inventaya}
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      INVENTAYA_JWT_SECRET: ${INVENTAYA_JWT_SECRET:-inventaya-clave-simetrica-de-desarrollo-cambiar-en-produccion}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      servicio-inventario:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8081/actuator/health | grep -q UP"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
+
+  # ---------------------------------------------------------------
+  # Interfaz gráfica (ventas, inventario y dashboard de notificaciones).
+  #
+  # Es una app estática servida por nginx, que además hace de reverse
+  # proxy hacia los dos servicios. Al quedar la interfaz y las APIs bajo
+  # el mismo origen, el navegador no necesita CORS y los servicios no
+  # cambian ninguna configuración por existir este front.
+  # ---------------------------------------------------------------
+
+  interfaz-web:
+    networks:
+      - inventaya-net
+    build: ./interfaz-web
+    container_name: inventaya-interfaz-web
+    restart: unless-stopped
+    ports:
+      - "8083:80"
+    volumes:
+      - ./interfaz-web/html:/usr/share/nginx/html:ro
+    depends_on:
+      # nginx resuelve los nombres de los upstream al arrancar, así que los dos
+      # servicios deben estar sanos antes de que suba el contenedor.
+      servicio-ventas:
+        condition: service_healthy
+      servicio-inventario:
+        condition: service_healthy
+
+  # ---------------------------------------------------------------
+  # Pendientes de entregas siguientes: se dejan comentados tal como
+  # estaban, sin implementación en esta entrega.
+  # ---------------------------------------------------------------
+
+  # servicio-notificaciones:
+  #   build: ./servicio-notificaciones
+  #   container_name: inventaya-servicio-notificaciones
+  #   environment:
+  #     SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+  #   depends_on:
+  #     - kafka
+
+  # gateway-graphql:
+  #   build: ./gateway-graphql
+  #   container_name: inventaya-gateway-graphql
+  #   ports:
+  #     - "8090:8090"
+  #   environment:
+  #     SERVICIO_VENTAS_URL: http://servicio-ventas:8081
+  #     SERVICIO_INVENTARIO_URL: http://servicio-inventario:8082
+  #   depends_on:
+  #     - servicio-ventas
+  #     - servicio-inventario
+
+networks:
+  inventaya-net:
+    name: inventaya-net
+    driver: bridge
+
+volumes:
+  postgres_data:
+  pgadmin_data:

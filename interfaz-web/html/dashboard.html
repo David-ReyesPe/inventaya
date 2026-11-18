@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard · InventaYa</title>
+    <link rel="stylesheet" href="assets/estilos.css">
+</head>
+<body>
+
+<header class="cabecera">
+    <div class="marca">Inventa<span>Ya</span></div>
+    <nav class="navegacion">
+        <a href="dashboard.html" data-pagina="dashboard">Dashboard</a>
+        <a href="ventas.html" data-pagina="ventas">Ventas</a>
+        <a href="inventario.html" data-pagina="inventario">Inventario</a>
+    </nav>
+    <div class="sesion">
+        <span class="sesion-estado" id="sesion-estado"></span>
+        <select id="selector-rol" style="width:auto">
+            <option value="ADMIN">ADMIN</option>
+            <option value="USER">USER</option>
+        </select>
+        <button id="boton-entrar" class="pequeno">Obtener token</button>
+        <button id="boton-salir" class="secundario pequeno">Salir</button>
+    </div>
+</header>
+
+<main>
+    <h1>Dashboard y notificaciones</h1>
+    <p class="subtitulo">
+        Vista consolidada de los dos servicios: indicadores de operacion y las notificaciones de
+        stock bajo que genera Inventario al consumir las ventas.
+    </p>
+
+    <div class="aviso error oculto" id="error-general"></div>
+
+    <div class="indicadores" id="indicadores"></div>
+
+    <section class="panel">
+        <div class="fila" style="justify-content:space-between; margin-bottom:14px">
+            <div>
+                <h2 style="margin:0">Notificaciones de stock bajo</h2>
+                <p class="ayuda" style="margin:2px 0 0">
+                    Cada notificacion corresponde a un evento <span class="mono">stock-bajo</span> publicado en
+                    <span class="mono">alertas-topic</span> y registrado en la tabla <span class="mono">alertas_stock</span>.
+                    Mientras el Servicio de Notificaciones no este implementado, esta pantalla es el consumidor
+                    de esas alertas.
+                </p>
+            </div>
+            <div class="fila" style="align-items:center">
+                <div>
+                    <label for="filtro-atendida">Mostrar</label>
+                    <select id="filtro-atendida" style="width:auto">
+                        <option value="">Todas</option>
+                        <option value="false" selected>Solo pendientes</option>
+                        <option value="true">Solo atendidas</option>
+                    </select>
+                </div>
+                <label style="display:flex; align-items:center; gap:6px; margin:0 0 2px">
+                    <input type="checkbox" id="auto-refresco" checked style="width:auto">
+                    <span>Refrescar cada 10 s</span>
+                </label>
+            </div>
+        </div>
+
+        <ul class="notificaciones" id="lista-alertas"></ul>
+        <div class="paginacion" id="paginacion-alertas"></div>
+    </section>
+
+    <section class="panel">
+        <h2>Productos por reponer</h2>
+        <p class="ayuda">Productos cuyo stock actual esta por debajo del umbral minimo configurado.</p>
+        <div class="tabla-envoltura">
+            <table>
+                <thead>
+                <tr>
+                    <th>Producto</th>
+                    <th class="numero">Stock</th>
+                    <th class="numero">Umbral</th>
+                    <th class="numero">Faltante</th>
+                    <th class="numero">Valor unitario</th>
+                </tr>
+                </thead>
+                <tbody id="cuerpo-riesgo"></tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="panel">
+        <h2>Ultimas ventas</h2>
+        <div class="tabla-envoltura">
+            <table>
+                <thead>
+                <tr>
+                    <th>Id</th>
+                    <th>Fecha</th>
+                    <th class="numero">Items</th>
+                    <th class="numero">Total</th>
+                    <th>Estado</th>
+                </tr>
+                </thead>
+                <tbody id="cuerpo-ultimas-ventas"></tbody>
+            </table>
+        </div>
+    </section>
+</main>
+
+<div id="avisos"></div>
+<p class="pie">
+    InventaYa · Entrega 2 P2 ·
+    <a href="http://localhost:8080" target="_blank">Kafka UI</a> ·
+    <a href="http://localhost:8081/swagger-ui.html" target="_blank">Swagger Ventas</a> ·
+    <a href="http://localhost:8082/swagger-ui.html" target="_blank">Swagger Inventario</a>
+</p>
+
+<script type="module" src="assets/dashboard.js"></script>
+</body>
+</html>
